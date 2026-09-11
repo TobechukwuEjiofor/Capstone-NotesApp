@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Notes App</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:40px; }
+  .wrap { max-width:640px; margin:0 auto; }
+  h1 { text-align:center; }
+  form { display:flex; gap:8px; margin-bottom:24px; }
+  input, textarea { flex:1; padding:10px; border-radius:8px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; }
+  button { padding:10px 16px; border:none; border-radius:8px; background:#2563eb; color:white; cursor:pointer; }
+  .note { background:#1e293b; border:1px solid #334155; border-radius:10px; padding:14px; margin-bottom:12px; }
+  .note h3 { margin:0 0 6px 0; }
+  .note small { color:#94a3b8; }
+  .del { float:right; background:#dc2626; }
+  .status-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  select { padding:6px 8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; }
+  .health { text-align:center; font-size:0.85em; color:#94a3b8; margin-bottom:16px; }
+  .health.ok { color:#4ade80; }
+  .health.down { color:#f87171; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📝 My Notes</h1>
+  <div id="health" class="health">Checking API…</div>
+  <form id="noteForm">
+    <input id="title" placeholder="Title" required />
+    <input id="content" placeholder="Content" />
+    <button type="submit">Add</button>
+  </form>
+  <div id="notes"></div>
+</div>
+<script>
+// These are relative paths ("/api/...") on purpose: the browser calls
+// the SAME origin it loaded the page from (Nginx), and Nginx forwards
+// them internally to the backend container. The frontend never talks
+// to the backend's host/port directly, and never talks to the database.
+
+async function checkHealth() {
+  const el = document.getElementById('health');
+  try {
+    const res = await fetch('/api/health');
+    if (!res.ok) throw new Error();
+    el.textContent = 'API connected';
+    el.className = 'health ok';
+  } catch {
+    el.textContent = 'API unreachable';
+    el.className = 'health down';
+  }
+}
+
+async function loadNotes() {
+  const res = await fetch('/api/notes');
+  const notes = await res.json();
+  const el = document.getElementById('notes');
+  el.innerHTML = notes.map(n => `
+    <div class="note">
+      <button class="del" onclick="deleteNote(${n.id})">Delete</button>
+      <h3>${n.title}</h3>
+      <p>${n.content || ''}</p>
+      <div class="status-row">
+        <label>Status:</label>
+        <select onchange="updateStatus(${n.id}, this.value)">
+          ${['open','in_progress','resolved','closed'].map(s =>
+            `<option value="${s}" ${s === n.status ? 'selected' : ''}>${s.replace('_',' ')}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <small>${new Date(n.created_at).toLocaleString()}</small>
+    </div>
+  `).join('');
+}
+
+async function updateStatus(id, status) {
+  await fetch('/api/notes/' + id + '/status', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  loadNotes();
+}
+
+async function deleteNote(id) {
+  await fetch('/api/notes/' + id, { method: 'DELETE' });
+  loadNotes();
+}
+
+document.getElementById('noteForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = document.getElementById('title').value;
+  const content = document.getElementById('content').value;
+  await fetch('/api/notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, content })
+  });
+  document.getElementById('title').value = '';
+  document.getElementById('content').value = '';
+  loadNotes();
+});
+
+checkHealth();
+loadNotes();
+</script>
+</body>
+</html>

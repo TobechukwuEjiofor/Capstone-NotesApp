@@ -1,0 +1,21 @@
+services:
+  frontend:
+    image: ${REGISTRY}/notes-frontend:${TAG}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    image: ${REGISTRY}/notes-backend:${TAG}
+    # Still no "ports:" -- same reasoning as local dev, just against
+    # a real Azure Database for PostgreSQL instead of a container.
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: notesdb
+      DB_SSL: "true"
+    restart: unless-stopped

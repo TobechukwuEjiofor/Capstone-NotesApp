@@ -1,0 +1,13 @@
+{
+  "name": "notes-db-app",
+  "version": "1.0.0",
+  "description": "A Node.js/Express + PostgreSQL notes app used in the Docker Compose + Azure guided project",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  }
+}

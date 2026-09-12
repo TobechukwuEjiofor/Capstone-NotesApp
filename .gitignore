@@ -1,0 +1,3 @@
+infrastructure/terraform.tfvars
+.env
+infrastructure/.terraform/ infrastructure/*.tfstate infrastructure/*.tfstate.* .env

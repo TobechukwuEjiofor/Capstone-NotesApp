@@ -37,6 +37,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get this runner's public IP
+        id: runnerip
+        run: echo "ip=$(curl -s https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      # Opens a narrow, temporary SSH allow-rule for THIS run only, so the
+      # permanent NSG rule (locked to the group's own IP) never has to be
+      # loosened. Removed again in the last step below, success or failure.
+      - name: Temporarily allow this runner's IP for SSH
+        run: |
+          az network nsg rule create \
+            --resource-group notesapp-rg \
+            --nsg-name notesapp-nsg \
+            --name AllowGithubActionsSSH \
+            --priority 200 \
+            --direction Inbound \
+            --access Allow \
+            --protocol Tcp \
+            --destination-port-ranges 22 \
+            --source-address-prefixes "${{ steps.runnerip.outputs.ip }}/32"
+
       - name: Copy compose file to VM
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -62,3 +87,13 @@ jobs:
             docker login ${{ vars.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} -p ${{ secrets.REGISTRY_PASSWORD }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
+
+      # if: always() ensures this runs even if a step above failed, so a
+      # broken deploy never leaves the firewall propped open afterward.
+      - name: Remove the temporary SSH rule
+        if: always()
+        run: |
+          az network nsg rule delete \
+            --resource-group notesapp-rg \
+            --nsg-name notesapp-nsg \
+            --name AllowGithubActionsSSH
